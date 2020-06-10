@@ -1,7 +1,12 @@
 const solitaire = require('./solitaire.js');
+const solve = require('./solve.js');
 const readline = require('readline');
 
-const game = new solitaire.Solitaire();
+const game = new solitaire.Solitaire(new solitaire.Rules(3));
+const solver = new solve.Solver(game);
+console.log(game.toConsoleString());
+console.log(solver.getWinningMoves());
+/*
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
@@ -20,3 +25,4 @@ function prompt(inputStr) {
 
 console.log(game.toConsoleString());
 rl.question('> ', prompt);
+*/

@@ -327,6 +327,22 @@ class Solitaire {
   }
 
   /**
+   * Solver needs to modify games, then backtrack. Simplest way to
+   * do that is to make a copy.
+   */
+  clone() {
+    let other = new Solitaire();
+    other.rules = this.rules;
+    other.foundation = {};
+    SUITS.forEach(suit => other.foundation[suit] = this.foundation[suit]);
+    other.hand = this.hand.slice();
+    other.waste = this.waste.slice();
+    other.tableau = [];
+    this.tableau.forEach(col => other.tableau.push(col.slice()));
+    return other;
+  }
+
+  /**
    * Return console-printable version of the game using unicode playing
    * card symbols.
    */
