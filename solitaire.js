@@ -210,7 +210,7 @@ class Solitaire {
           return false;
         }
         this.waste.pop();
-        column.push(srcCard);
+        column.push(toFaceUp(srcCard));
       } else {
         // Src/dst cards must have opposite suits and values must be
         // descending
@@ -263,20 +263,33 @@ class Solitaire {
           srcRow < 0 || srcRow >= this.tableau[srcCol].length) {
         return false;
       }
-      // Source card must not be flipped over and must be opposite color
-      // and one value lower than destination card
+      // Source card must not be flipped over
       const srcCard = this.tableau[srcCol][srcRow];
-      const dstCard = this.tableau[dstCol][this.tableau[dstCol].length - 1];
-      const srcValueIndex = VALUES.indexOf(getValue(srcCard));
-      const dstValueIndex = VALUES.indexOf(getValue(dstCard));
-      if (!areDifferentColors(srcCard, dstCard) ||
-          srcValueIndex !== dstValueIndex - 1) {
-        return false;
+      if (isFaceDown(srcCard)) {
+	return false;
       }
-      this.tableau[dstCol] = this.tableau[dstCol].concat(
-        this.tableau[srcCol].slice(srcRow)
-      );
-      this.tableau[srcCol] = this.tableau[srcCol].slice(0, srcRow);
+      // Source card can be king and destination can be a blank space
+      if (this.tableau[dstCol].length === 0) {
+	if (getValue(srcCard) !== VALUES[VALUES.length - 1]) {
+	  return false;
+	}
+	this.tableau[dstCol] = this.tableau[srcCol].slice(srcRow);
+	this.tableau[srcCol] = this.tableau[srcCol].slice(0, srcRow);
+      } else {
+	// Otherwise source card must be opposite color
+	// and one value lower than destination card
+	const dstCard = this.tableau[dstCol][this.tableau[dstCol].length - 1];
+	const srcValueIndex = VALUES.indexOf(getValue(srcCard));
+	const dstValueIndex = VALUES.indexOf(getValue(dstCard));
+	if (!areDifferentColors(srcCard, dstCard) ||
+            srcValueIndex !== dstValueIndex - 1) {
+          return false;
+	}
+	this.tableau[dstCol] = this.tableau[dstCol].concat(
+          this.tableau[srcCol].slice(srcRow)
+	);
+	this.tableau[srcCol] = this.tableau[srcCol].slice(0, srcRow);
+      }
       break;
     }
     default:
