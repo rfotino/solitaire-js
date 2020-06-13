@@ -14,8 +14,6 @@ const VALUES = Object.freeze(
 const SORTED_DECK = Object.freeze(
   [].concat.apply([], SUITS.map(s => VALUES.map(v => v + s)))
 );
-const FACE_UP = 'U';
-const FACE_DOWN = 'D';
 
 /**
  * Copy and shuffle the sorted deck using Fisher-Yates algorithm,
@@ -41,12 +39,6 @@ function isBlack(card) {
   const suit = getSuit(card);
   return suit === SPADES || suit === CLUBS;
 }
-function isFaceDown(card) {
-  return card.length === 3 && card[2] === FACE_DOWN;
-}
-function toFaceUp(card) {
-  return card.substring(0, 2) + FACE_UP;
-}
 
 function areDifferentColors(card1, card2) {
   return isBlack(card1) !== isBlack(card2);
@@ -55,9 +47,6 @@ function areDifferentColors(card1, card2) {
 // https://en.wikipedia.org/wiki/Playing_cards_in_Unicode
 const UNICODE_FACE_DOWN = String.fromCodePoint(0x1f0a0);
 function toUnicode(card) {
-  if (isFaceDown(card)) {
-    return UNICODE_FACE_DOWN;
-  }
   const value = getValue(card);
   const suit = getSuit(card);
   const valueIndex = VALUES.indexOf(value);
@@ -134,23 +123,24 @@ class Solitaire {
     // down and the one on the bottom of each starting face up.
     this.tableau = [];
     for (let i = 0; i < this.rules.tableauSize; i++) {
-      this.tableau.push([]);
+      this.tableau.push({faceDown: [], faceUp: []});
     }
     for (let row = 0; row < this.rules.tableauSize; row++) {
       for (let column = row; column < this.rules.tableauSize; column++) {
         const card = this.hand.pop();
-        this.tableau[column].push(
-          card + (row === column ? FACE_UP : FACE_DOWN)
-        );
+	if (row === column) {
+	  this.tableau[column].faceUp.push(card);
+	} else {
+	  this.tableau[column].faceDown.push(card);
+	}
       }
     }
   }
 
   /**
-   * Return true if the move is valid and has been successfully applied,
-   * false if the move is invalid.
+   * Return boolean whether the move could be applied.
    */
-  applyMove(move) {
+  isMoveValid(move) {
     switch (move.type) {
     case Move.DRAW: {
       if (move.extras.length !== 0) {
@@ -159,17 +149,6 @@ class Solitaire {
       // If both hand and waste are empty this fails
       if (this.hand.length === 0 && this.waste.length === 0) {
         return false;
-      }
-      // Move waste back to hand if hand is empty
-      if (this.hand.length === 0 && this.waste.length > 0) {
-        this.hand = this.waste.reverse();
-        this.waste = [];
-      }
-      // Draw up to rules.drawSize cards and place in waste
-      let cardsToDraw = this.rules.drawSize;
-      while (cardsToDraw > 0 && this.hand.length > 0) {
-        this.waste.push(this.hand.pop());
-        cardsToDraw--;
       }
       break;
     }
@@ -187,9 +166,6 @@ class Solitaire {
       if (valueIndex !== this.foundation[suit] + 1) {
         return false;
       }
-      // Suit and value are appropriate
-      this.foundation[suit]++;
-      this.waste.pop();
       break;
     }
     case Move.WASTE_TO_TABLEAU: {
@@ -203,26 +179,22 @@ class Solitaire {
         return false;
       }
       // If tableau is empty, waste card must be a king
-      let column = this.tableau[dstCol];
+      const column = this.tableau[dstCol];
       const srcCard = this.waste[this.waste.length - 1];
-      if (column.length === 0) {
+      if (column.faceUp.length === 0) {
         if (getValue(srcCard) !== VALUES[VALUES.length - 1]) {
           return false;
         }
-        this.waste.pop();
-        column.push(toFaceUp(srcCard));
       } else {
         // Src/dst cards must have opposite suits and values must be
         // descending
-        const dstCard = column[column.length - 1];
+        const dstCard = column.faceUp[column.faceUp.length - 1];
         const srcValueIndex = VALUES.indexOf(getValue(srcCard));
         const dstValueIndex = VALUES.indexOf(getValue(dstCard));
         if (!areDifferentColors(srcCard, dstCard) ||
             srcValueIndex !== dstValueIndex - 1) {
           return false;
         }
-        this.waste.pop();
-        column.push(srcCard);
       }
       break;
     }
@@ -234,20 +206,17 @@ class Solitaire {
       // Tableau src index must be in range and that column must
       // contain at least one card
       if (srcCol < 0 || srcCol >= this.tableau.length ||
-          this.tableau[srcCol].length === 0) {
+          this.tableau[srcCol].faceUp.length === 0) {
         return false;
       }
       // Card must be the next one to add to that suit's foundation
       const column = this.tableau[srcCol];
-      const card = column[column.length - 1];
+      const card = column.faceUp[column.faceUp.length - 1];
       const suit = getSuit(card);
       const valueIndex = VALUES.indexOf(getValue(card));
       if (valueIndex !== this.foundation[suit] + 1) {
         return false;
       }
-      // Suit and value are appropriate
-      this.foundation[suit]++;
-      this.tableau[srcCol].pop();
       break;
     }
     case Move.TABLEAU_TO_TABLEAU: {
@@ -260,67 +229,112 @@ class Solitaire {
       // src/dst columns and srcRow must be in range
       if (srcCol < 0 || srcCol >= this.tableau.length ||
           dstCol < 0 || dstCol >= this.tableau.length ||
-          srcRow < 0 || srcRow >= this.tableau[srcCol].length) {
+          srcRow < 0 || srcRow >= this.tableau[srcCol].faceUp.length) {
         return false;
       }
       // Source card must not be flipped over
-      const srcCard = this.tableau[srcCol][srcRow];
-      if (isFaceDown(srcCard)) {
-	return false;
-      }
+      const srcCard = this.tableau[srcCol].faceUp[srcRow];
       // Source card can be king and destination can be a blank space
-      if (this.tableau[dstCol].length === 0) {
+      if (this.tableau[dstCol].faceUp.length === 0) {
 	if (getValue(srcCard) !== VALUES[VALUES.length - 1]) {
 	  return false;
 	}
-	this.tableau[dstCol] = this.tableau[srcCol].slice(srcRow);
-	this.tableau[srcCol] = this.tableau[srcCol].slice(0, srcRow);
       } else {
 	// Otherwise source card must be opposite color
 	// and one value lower than destination card
-	const dstCard = this.tableau[dstCol][this.tableau[dstCol].length - 1];
+	const dstCard = this.tableau[dstCol].faceUp[this.tableau[dstCol].faceUp.length - 1];
 	const srcValueIndex = VALUES.indexOf(getValue(srcCard));
 	const dstValueIndex = VALUES.indexOf(getValue(dstCard));
 	if (!areDifferentColors(srcCard, dstCard) ||
             srcValueIndex !== dstValueIndex - 1) {
           return false;
 	}
-	this.tableau[dstCol] = this.tableau[dstCol].concat(
-          this.tableau[srcCol].slice(srcRow)
-	);
-	this.tableau[srcCol] = this.tableau[srcCol].slice(0, srcRow);
       }
       break;
     }
     default:
       return false;
     }
-
-    // Flip over any cards that have been exposed in the tableau
-    for (let i = 0; i < this.tableau.length; i++) {
-      let column = this.tableau[i];
-      if (column.length === 0) {
-        continue;
-      }
-      const card = column[column.length - 1];
-      if (isFaceDown(card)) {
-        column[column.length - 1] = toFaceUp(card);
-      }
-    }
     return true;
   }
 
   /**
-   * Game is won when the tableau, hand, and waste are clear and the
-   * foundation has kings on top. For simplicity we can just check the
-   * foundation, assuming the game has been played without cheating.
+   * Precondition that isMoveValid(move) === true. Returns void.
+   */
+  applyMove(move) {
+    switch (move.type) {
+    case Move.DRAW: {
+      // Move waste back to hand if hand is empty
+      if (this.hand.length === 0 && this.waste.length > 0) {
+        this.hand = this.waste.reverse();
+        this.waste = [];
+      }
+      // Draw up to rules.drawSize cards and place in waste
+      let cardsToDraw = this.rules.drawSize;
+      while (cardsToDraw > 0 && this.hand.length > 0) {
+        this.waste.push(this.hand.pop());
+        cardsToDraw--;
+      }
+      break;
+    }
+    case Move.WASTE_TO_FOUNDATION: {
+      const card = this.waste[this.waste.length - 1];
+      const suit = getSuit(card);
+      this.foundation[suit]++;
+      this.waste.pop();
+      break;
+    }
+    case Move.WASTE_TO_TABLEAU: {
+      const dstCol = move.extras[0];
+      let column = this.tableau[dstCol];
+      const srcCard = this.waste[this.waste.length - 1];
+      this.waste.pop();
+      column.faceUp.push(srcCard);
+      break;
+    }
+    case Move.TABLEAU_TO_FOUNDATION: {
+      const srcCol = move.extras[0];
+      let column = this.tableau[srcCol];
+      const card = column.faceUp[column.faceUp.length - 1];
+      const suit = getSuit(card);
+      this.foundation[suit]++;
+      this.tableau[srcCol].faceUp.pop();
+      break;
+    }
+    case Move.TABLEAU_TO_TABLEAU: {
+      const srcCol = move.extras[0];
+      const srcRow = move.extras[1];
+      const dstCol = move.extras[2];
+      this.tableau[dstCol].faceUp = this.tableau[dstCol].faceUp.concat(
+	this.tableau[srcCol].faceUp.slice(srcRow)
+      );
+      this.tableau[srcCol].faceUp = this.tableau[srcCol].faceUp.slice(0, srcRow);
+      break;
+    }
+    }
+
+    // Flip over any cards that have been exposed in the tableau
+    for (let i = 0; i < this.tableau.length; i++) {
+      let column = this.tableau[i];
+      if (column.faceUp.length === 0 && column.faceDown.length !== 0) {
+	column.faceUp.push(column.faceDown.pop());
+      }
+    }
+  }
+
+  /**
+   * Game is technically won when the foundation is all kings, but we can
+   * short circuit the solver algorithm and just call the game won when
+   * there are no cards in the hand/waste and there are no face-down cards
+   * on the tableau.
    */
   isWon() {
-    const kingValue = VALUES.length - 1;
-    for (let i = 0; i < SUITS.length; i++) {
-      const suit = SUITS[i];
-      if (this.foundation[suit] !== kingValue) {
-        return false;
+    if (this.hand.length > 0 || this.waste.length > 0) {
+      return false;
+    }
+    for (let i = 0; i < this.tableau.length; i++) {
+      if (this.tableau[i].faceDown.length > 0) {
+	return false;
       }
     }
     return true;
@@ -338,7 +352,10 @@ class Solitaire {
     other.hand = this.hand.slice();
     other.waste = this.waste.slice();
     other.tableau = [];
-    this.tableau.forEach(col => other.tableau.push(col.slice()));
+    this.tableau.forEach(col => other.tableau.push({
+      faceDown: col.faceDown.slice(),
+      faceUp: col.faceUp.slice(),
+    }));
     return other;
   }
 
@@ -359,13 +376,20 @@ class Solitaire {
     });
     ret += '\n';
     const tableauHeight = Math.max.apply(
-      Math, this.tableau.map(c => c.length)
+      Math, this.tableau.map(c => c.faceDown.length + c.faceUp.length)
     );
     for (let i = 0; i < tableauHeight; i++) {
       ret += '\n    ';
       for (let j = 0; j < this.tableau.length; j++) {
-        ret += this.tableau[j].length > i ?
-          toUnicode(this.tableau[j][i]) + ' ' : '  ';
+	const faceDownLength = this.tableau[j].faceDown.length;
+	const faceUpLength = this.tableau[j].faceUp.length;
+	if (i < faceDownLength) {
+	  ret += UNICODE_FACE_DOWN + ' ';
+	} else if (i < faceDownLength + faceUpLength) {
+	  ret += toUnicode(this.tableau[j].faceUp[i - faceDownLength]) + ' ';
+	} else {
+	  ret += '  ';
+	}
       }
     }
     return ret;
