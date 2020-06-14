@@ -1,9 +1,10 @@
 const solitaire = require('./solitaire.js');
+const lrucache = require('./lrucache.js');
 
 class Solver {
-  constructor(game) {
+  constructor(game, cacheSize = 1000000) {
     this.game = game;
-    this.stateCache = new Set();
+    this.stateCache = new lrucache.LRUCache(cacheSize);
     this.calls = 0;
   }
 
@@ -254,7 +255,9 @@ class Solver {
     // Print out diagnostic info every so often
     this.calls++;
     if (this.calls % 5000 === 0) {
-      console.log(`getWinningMoves() calls: ${this.calls}, depth: ${depth}`);
+      console.log(`calls: ${this.calls}`);
+      console.log(`cache: ${this.stateCache.size}`);
+      console.log(`depth: ${depth}`);
       console.log(game.toConsoleString());
     }
 
