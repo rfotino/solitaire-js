@@ -4,25 +4,22 @@ const readline = require('readline');
 
 const game = new solitaire.Solitaire(new solitaire.Rules(3));
 const solver = new solve.Solver(game);
+console.log('Attempting to solve:');
 console.log(game.toConsoleString());
-console.log(solver.getWinningMoves());
-/*
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
-function prompt(inputStr) {
-  const inputArr = inputStr.split(' ');
-  if (inputArr.length !== 0) {
-    const moveType = inputArr[0];
-    const moveExtras = inputArr.slice(1).map(s => Number(s));
-    if (game.applyMove(new solitaire.Move(moveType, moveExtras))) {
+const winningMoves = solver.getWinningMoves();
+if (winningMoves !== null) {
+  // Verify solution
+  for (let i = 0; i < winningMoves.length; i++) {
+    if (!game.isValidMove(winningMoves[i])) {
+      console.log(`Solver bug, solution was invalid at move ${i}`);
+      console.log(`Game state and move attempted at move ${i}:`);
       console.log(game.toConsoleString());
+      console.log(winningMoves[i]);
+      break;
     }
+    game.applyMove(winningMoves[i]);
   }
-  rl.question('> ', prompt);
+  console.log(`Found solution in ${winningMoves.length} moves.`);
+} else {
+  console.log('No solution.');
 }
-
-console.log(game.toConsoleString());
-rl.question('> ', prompt);
-*/

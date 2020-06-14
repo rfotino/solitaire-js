@@ -140,7 +140,7 @@ class Solitaire {
   /**
    * Return boolean whether the move could be applied.
    */
-  isMoveValid(move) {
+  isValid(move) {
     switch (move.type) {
     case Move.DRAW: {
       if (move.extras.length !== 0) {
@@ -259,7 +259,7 @@ class Solitaire {
   }
 
   /**
-   * Precondition that isMoveValid(move) === true. Returns void.
+   * Precondition that isValid(move) === true. Returns void.
    */
   applyMove(move) {
     switch (move.type) {
@@ -396,6 +396,8 @@ class Solitaire {
   }
 }
 
+exports.SUITS = SUITS;
+exports.VALUES = VALUES;
 exports.Rules = Rules;
 exports.Move = Move;
 exports.Solitaire = Solitaire;
