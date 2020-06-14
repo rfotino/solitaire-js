@@ -10,7 +10,7 @@ const winningMoves = solver.getWinningMoves();
 if (winningMoves !== null) {
   // Verify solution
   for (let i = 0; i < winningMoves.length; i++) {
-    if (!game.isValidMove(winningMoves[i])) {
+    if (!game.isValid(winningMoves[i])) {
       console.log(`Solver bug, solution was invalid at move ${i}`);
       console.log(`Game state and move attempted at move ${i}:`);
       console.log(game.toConsoleString());
