@@ -21,7 +21,7 @@ class Solver {
 
   getAceMoves(game) {
     let ret = [];
-    if (game.waste.length > 0 && game.waste[0][0] === 'A') {
+    if (game.waste.length > 0 && game.waste[game.waste.length - 1][0] === 'A') {
       ret.push(new solitaire.Move(solitaire.Move.WASTE_TO_FOUNDATION));
     }
     for (let i = 0; i < game.tableau.length; i++) {
@@ -36,7 +36,7 @@ class Solver {
 
   getMovesToFoundation(game) {
     let ret = [];
-    if (game.waste.length > 0 && game.waste[0][0] !== 'A') {
+    if (game.waste.length > 0 && game.waste[game.waste.length - 1][0] !== 'A') {
       const move = new solitaire.Move(solitaire.Move.WASTE_TO_FOUNDATION);
       if (game.isValid(move)) {
 	ret.push(move);
