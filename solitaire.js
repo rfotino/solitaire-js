@@ -143,9 +143,6 @@ class Solitaire {
   isValid(move) {
     switch (move.type) {
     case Move.DRAW: {
-      if (move.extras.length !== 0) {
-        return false;
-      }
       // If both hand and waste are empty this fails
       if (this.hand.length === 0 && this.waste.length === 0) {
         return false;
@@ -153,9 +150,6 @@ class Solitaire {
       break;
     }
     case Move.WASTE_TO_FOUNDATION: {
-      if (move.extras.length !== 0) {
-        return false;
-      }
       // Must have at least one card in waste
       if (this.waste.length === 0) {
         return false;
@@ -169,7 +163,7 @@ class Solitaire {
       break;
     }
     case Move.WASTE_TO_TABLEAU: {
-      if (move.extras.length !== 1) {
+      if (move.extras.length < 1) {
         return false;
       }
       const dstCol = move.extras[0];
@@ -199,7 +193,7 @@ class Solitaire {
       break;
     }
     case Move.TABLEAU_TO_FOUNDATION: {
-      if (move.extras.length !== 1) {
+      if (move.extras.length < 1) {
         return false;
       }
       const srcCol = move.extras[0];
@@ -220,7 +214,7 @@ class Solitaire {
       break;
     }
     case Move.TABLEAU_TO_TABLEAU: {
-      if (move.extras.length !== 3) {
+      if (move.extras.length < 3) {
         return false;
       }
       const srcCol = move.extras[0];
