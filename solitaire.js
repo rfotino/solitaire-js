@@ -7,7 +7,7 @@ const SPADES = 'S';
 const DIAMONDS = 'D';
 const CLUBS = 'C';
 const HEARTS = 'H';
-const SUITS = Object.freeze([SPADES, DIAMONDS, CLUBS, HEARTS]);
+const SUITS = Object.freeze([SPADES, HEARTS, DIAMONDS, CLUBS]);
 const VALUES = Object.freeze(
   ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K']
 );
@@ -99,6 +99,9 @@ class Move {
 
   // extras = [srcCol, srcRow, dstCol]
   static get TABLEAU_TO_TABLEAU() { return 5; }
+
+  // extras = [suit, dstCol]
+  static get FOUNDATION_TO_TABLEAU() { return 6; }
 }
 
 /**
@@ -246,6 +249,33 @@ class Solitaire {
       }
       break;
     }
+    case Move.FOUNDATION_TO_TABLEAU: {
+      if (move.extras.length < 2) {
+	return false;
+      }
+      const suitIdx = move.extras[0];
+      if (suitIdx < 0 || suitIdx >= SUITS.length) {
+	return false;
+      }
+      const suit = SUITS[suitIdx];
+      const dstColIdx = move.extras[1];
+      if (this.foundation[suit] < 0 ||
+	  dstColIdx < 0 || dstColIdx >= this.tableau.length ||
+	  this.tableau[dstColIdx].faceUp.length === 0) {
+	return false;
+      }
+      const dstCol = this.tableau[dstColIdx];
+      const foundationCard = VALUES[this.foundation[suit]] + suit;
+      const dstCard = dstCol.faceUp[dstCol.faceUp.length - 1];
+      const srcValueIdx = VALUES.indexOf(getValue(foundationCard));
+      const dstValueIdx = VALUES.indexOf(getValue(dstCard));
+      if (!areDifferentColors(dstCard, foundationCard) ||
+	  dstValueIdx !== srcValueIdx + 1) {
+	console.log(dstCard, foundationCard, SUITS, this.foundation);
+	return false;
+      }
+      break;
+    }
     default:
       return false;
     }
@@ -303,6 +333,14 @@ class Solitaire {
 	this.tableau[srcCol].faceUp.slice(srcRow)
       );
       this.tableau[srcCol].faceUp = this.tableau[srcCol].faceUp.slice(0, srcRow);
+      break;
+    }
+    case Move.FOUNDATION_TO_TABLEAU: {
+      const suit = SUITS[move.extras[0]];
+      const foundationCard = VALUES[this.foundation[suit]] + suit;
+      let dstCol = this.tableau[move.extras[1]];
+      dstCol.faceUp.push(foundationCard);
+      this.foundation[suit]--;
       break;
     }
     }
