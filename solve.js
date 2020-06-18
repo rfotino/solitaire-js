@@ -1,21 +1,34 @@
-const solitaire = require('./solitaire.js');
+ const solitaire = require('./solitaire.js');
 const lrucache = require('./lrucache.js');
 
+const START_TIME = Date.now();
+let totalMoves = 0;
+
 class Solver {
-  constructor(game, cacheSize = 1000000) {
+  constructor(game, timeout, cacheSize = 1000000) {
     this.game = game;
     this.stateCache = new lrucache.LRUCache(cacheSize);
+    this.startTimestamp = Date.now();
+    this.tableauRevealingMoveCache = new Map();
+    this.tableauNonrevealingMoveCache = new Map();
     this.calls = 0;
+    this.tableauCacheHit = 0;
+    this.tableauCacheMiss = 0;
+    this.timeout = timeout;
+    this.didTimeout = false;
   }
 
   getValidMoves(game) {
+    const tableauCacheString = game.tableau.map(
+      c => c.faceUp.join('')
+    ).join('|');
     return [].concat.apply([], [
       this.getAceMoves(game),
       this.getMovesToFoundation(game),
-      this.getCardRevealingMoves(game),
+      this.getCardRevealingMoves(game, tableauCacheString),
       this.getMovesWasteToTableau(game),
       this.getDrawMove(game),
-      this.getMovesTableauToTableau(game),
+      this.getMovesTableauToTableau(game, tableauCacheString),
     ]);
   }
 
@@ -65,13 +78,22 @@ class Solver {
   }
 
   /**
-   * Only tableau-to-tableau moves that reveal a card
+   * Only tableau-to-tableau moves that reveal a card or an empty space.
    */
-  getCardRevealingMoves(game) {
+  getCardRevealingMoves(game, tableauCacheString = null) {
+    // Often there are many cards face up on the tableau but only
+    // a small number of legal moves. Cache the legal moves instead
+    // of checking all of them every time
+    if (this.tableauRevealingMoveCache.has(tableauCacheString)) {
+      this.tableauCacheHit++;
+      return this.tableauRevealingMoveCache.get(tableauCacheString);
+    }
+    this.tableauCacheMiss++;
+
     let ret = [];
     const needsKingSpace = !this.hasEmptySpace(game.tableau);
     for (let i = 0; i < game.tableau.length; i++) {
-      if (game.tableau[i].faceDown.length > 0) {
+      if (game.tableau[i].faceUp.length > 0) {
 	for (let j = 0; j < game.tableau.length; j++) {
 	  if (i === j) {
 	    continue;
@@ -86,7 +108,7 @@ class Solver {
 	}
       }
     }
-    return ret.sort((first, second) => {
+    ret.sort((first, second) => {
       const firstFaceDownCount = game.tableau[first.extras[0]].faceDown.length;
       const secondFaceDownCount = game.tableau[second.extras[0]].faceDown.length;
       if (firstFaceDownCount !== secondFaceDownCount) {
@@ -99,6 +121,8 @@ class Solver {
 	return first.extras[0] - second.extras[0];
       }
     });
+    this.tableauRevealingMoveCache.set(tableauCacheString, ret);
+    return ret;
   }
 
   getMovesWasteToTableau(game) {
@@ -124,13 +148,19 @@ class Solver {
   /**
    * Tableau to tableau moves that don't reveal a card
    */
-  getMovesTableauToTableau(game) {
+  getMovesTableauToTableau(game, tableauCacheString = null) {
+    // Often there are many cards face up on the tableau but only
+    // a small number of legal moves. Cache the legal moves instead
+    // of checking all of them every time
+    if (this.tableauNonrevealingMoveCache.has(tableauCacheString)) {
+      this.tableauCacheHit++;
+      return this.tableauNonrevealingMoveCache.get(tableauCacheString);
+    }
+    this.tableauCacheMiss;
+
     let ret = [];
     for (let i = 0; i < game.tableau.length; i++) {
       const srcFaceUp = game.tableau[i].faceUp;
-      if (srcFaceUp.length <= 1) {
-	continue;
-      }
       for (let j = 1; j < srcFaceUp.length; j++) {
 	for (let k = 0; k < game.tableau.length; k++) {
 	  if (i === k) {
@@ -146,6 +176,7 @@ class Solver {
 	}
       }
     }
+    this.tableauNonrevealingMoveCache.set(tableauCacheString, ret);
     return ret;
   }
 
@@ -162,10 +193,22 @@ class Solver {
    */
   getGameStateId(game, canFlipDeck) {
     const separator = '|';
+    let accessibleDrawCards = new Set();
+    if (game.waste.length > 0){
+      accessibleDrawCards.add(game.waste[game.waste.length - 1]);
+    }
+    const newDeck = game.waste.slice().reverse().concat(game.hand);
+    for (let i = newDeck.length - game.rules.drawSize;
+	 i >= 0; i -= game.rules.drawSize) {
+      accessibleDrawCards.add(newDeck[i]);
+    }
+    if (newDeck.length > 0) {
+      accessibleDrawCards.add(newDeck[0]);
+    }
     return [
       canFlipDeck ? '1' : '0',
-      game.hand.join(''),
-      game.waste.join(''),
+      game.waste.length > 0 ? game.waste[game.waste.length - 1] : '',
+      Array.from(accessibleDrawCards).join(''),
       solitaire.SUITS.map(s => game.foundation[s] + 1).join(','),
       game.tableau.map((col, index) => {
 	if (col.faceDown.length > 0) {
@@ -208,7 +251,7 @@ class Solver {
     if (move.type === solitaire.Move.TABLEAU_TO_TABLEAU) {
       const newSrcStack = clonedGame.tableau[move.extras[0]].faceUp.join('');
       const newDstStack = clonedGame.tableau[move.extras[2]].faceUp.join('');
-      if (seenCardStacks.has(newSrcStack) || seenCardStacks.has(newDstStack)) {
+      if (seenCardStacks.has(newSrcStack) && seenCardStacks.has(newDstStack)) {
 	return null;
       }
       newStacks.push(newSrcStack);
@@ -219,7 +262,7 @@ class Solver {
     }
     // Recurse one move further
     const winningMoves = this.getWinningMoves(
-      clonedGame, seenCardStacks, canFlipDeck, depth);
+      clonedGame, seenCardStacks, canFlipDeck, depth + 1);
     if (winningMoves !== null) {
       return winningMoves;
     }
@@ -240,6 +283,12 @@ class Solver {
     canFlipDeck = false,
     depth = 0
   ) {
+    const elapsedTimeMs = Date.now() - this.startTimestamp;
+    if (this.timeout < elapsedTimeMs) {
+      this.didTimeout = true;
+      return null;
+    }
+
     // Recursion base case
     if (game.isWon()) {
       return [];
@@ -254,18 +303,23 @@ class Solver {
 
     // Print out diagnostic info every so often
     this.calls++;
+    totalMoves++;
     if (this.calls % 5000 === 0) {
-      console.log(`calls: ${this.calls}`);
-      console.log(`cache: ${this.stateCache.size}`);
-      console.log(`depth: ${depth}`);
-      console.log(game.toConsoleString());
+      console.error(`moves/sec: ${this.calls / (elapsedTimeMs / 1000)}`);
+      console.error(`calls: ${this.calls}`);
+      console.error(`cache: ${this.stateCache.size}`);
+      console.error(`depth: ${depth}`);
+      console.error(`time spent: ${elapsedTimeMs / 1000} seconds`);
+      console.error(`hit rate: ${this.tableauCacheHit / (this.tableauCacheHit + this.tableauCacheMiss)}`);
+      console.error(`tableau move cache size: ${this.tableauRevealingMoveCache.size}`);
+      console.error(game.toConsoleString());
     }
 
     const moves = this.getValidMoves(game);
     for (let i = 0; i < moves.length; i++) {
       const move = moves[i];
       let remainingMoves = this.maybeApplyMove(
-	move, game, seenCardStacks, canFlipDeck, depth + 1);
+	move, game, seenCardStacks, canFlipDeck, depth);
       if (remainingMoves !== null) {
 	remainingMoves.unshift(move);
 	return remainingMoves;

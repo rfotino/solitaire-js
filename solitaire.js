@@ -88,17 +88,17 @@ class Move {
     this.extras = extras;
   }
 
-  static get DRAW() { return 'd'; }
-  static get WASTE_TO_FOUNDATION() { return 'wf'; }
+  static get DRAW() { return 1; }
+  static get WASTE_TO_FOUNDATION() { return 2; }
 
   // extras = [dstCol]
-  static get WASTE_TO_TABLEAU() { return 'p'; }
+  static get WASTE_TO_TABLEAU() { return 3; }
 
   // extras = [srcCol]
-  static get TABLEAU_TO_FOUNDATION() { return 'tf'; }
+  static get TABLEAU_TO_FOUNDATION() { return 4; }
 
   // extras = [srcCol, srcRow, dstCol]
-  static get TABLEAU_TO_TABLEAU() { return 'm'; }
+  static get TABLEAU_TO_TABLEAU() { return 5; }
 }
 
 /**
@@ -364,6 +364,8 @@ class Solitaire {
    * card symbols.
    */
   toConsoleString() {
+    const FACE_DOWN = '\u001b[31m';
+    const RESET = '\u001b[0m';
     let ret = '';
     ret += this.hand.length > 0 ? UNICODE_FACE_DOWN + ' ' : '  ';
     ret += this.waste.length > 0 ?
@@ -384,7 +386,8 @@ class Solitaire {
 	const faceDownLength = this.tableau[j].faceDown.length;
 	const faceUpLength = this.tableau[j].faceUp.length;
 	if (i < faceDownLength) {
-	  ret += UNICODE_FACE_DOWN + ' ';
+	  ret +=
+	    FACE_DOWN + toUnicode(this.tableau[j].faceDown[i]) + RESET + ' ';
 	} else if (i < faceDownLength + faceUpLength) {
 	  ret += toUnicode(this.tableau[j].faceUp[i - faceDownLength]) + ' ';
 	} else {
@@ -398,6 +401,7 @@ class Solitaire {
 
 exports.SUITS = SUITS;
 exports.VALUES = VALUES;
+exports.getShuffledDeck = getShuffledDeck;
 exports.Rules = Rules;
 exports.Move = Move;
 exports.Solitaire = Solitaire;
